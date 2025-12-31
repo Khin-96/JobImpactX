@@ -1,3 +1,8 @@
+"""
+JobImpactX Streamlit Dashboard.
+Executive interface for AI automation risk intelligence.
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,11 +11,16 @@ import plotly.express as px
 from datetime import datetime
 import requests
 import os
+import json
+
+# API Configuration
+API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_TOKEN = st.session_state.get("api_token", None)
 
 # Configure page
 st.set_page_config(
-    page_title="AI Job Impact Platform",
-    page_icon="",
+    page_title="JobImpactX Platform",
+    page_icon="chart_with_upwards_trend",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -25,79 +35,433 @@ st.markdown("""
         border-radius: 10px;
         text-align: center;
     }
-    .risk-low {
-        color: #2ecc71;
-        font-weight: bold;
-    }
-    .risk-medium {
-        color: #f39c12;
-        font-weight: bold;
-    }
-    .risk-high {
-        color: #e74c3c;
-        font-weight: bold;
+    .risk-low { color: #2ecc71; font-weight: bold; }
+    .risk-medium { color: #f39c12; font-weight: bold; }
+    .risk-high { color: #e74c3c; font-weight: bold; }
+    .stButton>button {
+        width: 100%;
     }
 </style>
 """, unsafe_allow_html=True)
 
+
+# Authentication
+def login(username: str, password: str) -> bool:
+    """Authenticate user and store token."""
+    try:
+        response = requests.post(
+            f"{API_URL}/auth/token",
+            data={"username": username, "password": password}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            st.session_state["api_token"] = data["access_token"]
+            st.session_state["authenticated"] = True
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Authentication failed: {e}")
+        return False
+
+
+def get_headers():
+    """Get authorization headers."""
+    token = st.session_state.get("api_token")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {}
+
+
+# Authentication check
+if not st.session_state.get("authenticated", False):
+    st.title("JobImpactX Platform")
+    st.subheader("Enterprise AI Impact & Risk Intelligence")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.write("### Sign In")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        
+        if st.button("Login"):
+            if login(username, password):
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
+    
+    st.stop()
+
 # Sidebar navigation
-st.sidebar.title("AI Job Impact Platform")
-st.sidebar.write("Version 1.0.0")
+st.sidebar.title("JobImpactX Platform")
+st.sidebar.write("Enterprise AI Risk Intelligence")
+
+if st.sidebar.button("Logout"):
+    st.session_state.clear()
+    st.rerun()
 
 page = st.sidebar.radio(
     "Navigation",
-    ["Dashboard", "Role Assessment", "Explainability", "What-If Scenarios", "Audit Trail"]
+    ["Dashboard", "Role Assessment", "Explainability", "What-If Scenarios", "Audit Trail", "Reports"]
 )
 
 st.sidebar.divider()
 st.sidebar.info("""
 **About This Platform**
 
-This platform helps organizations understand and govern the impact of AI-driven automation on their workforce roles.
+Provides explainable, audit-grade risk intelligence for understanding AI automation impact on workforce roles.
 
 **Key Features:**
-- Role-level automation risk assessment
-- SHAP/LIME explainability framework
-- What-if scenario analysis
-- Audit trail and governance controls
+- Risk assessment with confidence intervals
+- SHAP/LIME explainability
+- Scenario analysis
+- Governance and audit controls
 """)
 
-# Main content
+# Page: Dashboard
 if page == "Dashboard":
     st.title("Executive Dashboard")
-    
     st.subheader("AI Automation Risk Overview")
-    st.write("Predicted impact of AI-driven automation on your workforce by 2030.")
     
-    col1, col2, col3, col4 = st.columns(4)
+    # Fetch statistics from API
+    try:
+        # Note: In production, create a statistics endpoint
+        st.info("Dashboard statistics - Connect to real-time metrics via API")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                label="System Status",
+                value="Operational",
+                delta="Healthy"
+            )
+        with col2:
+            st.metric(
+                label="API Endpoint",
+                value="Active",
+                delta=f"{API_URL}"
+            )
+        with col3:
+            st.metric(
+                label="Model Status",
+                value="Loaded",
+                delta="XGBoost"
+            )
+        with col4:
+            st.metric(
+                label="Auth Status",
+                value="Authenticated",
+                delta="Secured"
+            )
+        
+        st.divider()
+        st.info("Real-time analytics and role distribution visualizations would be displayed here based on assessment data from the database.")
+        
+    except Exception as e:
+        st.error(f"Error loading dashboard: {e}")
+
+# Page: Role Assessment
+elif page == "Role Assessment":
+    st.title("Role Automation Risk Assessment")
+    st.write("Assess the automation probability for a specific role.")
+    
+    col1, col2 = st.columns(2)
     
     with col1:
-        st.metric(
-            label="Avg Risk Score",
-            value="0.54",
-            delta="-0.02",
-            delta_color="inverse"
-        )
-    with col2:
-        st.metric(
-            label="High Risk Roles",
-            value="127",
-            delta="+5",
-            delta_color="inverse"
-        )
-    with col3:
-        st.metric(
-            label="Model Confidence",
-            value="92%",
-            delta="+2%"
-        )
-    with col4:
-        st.metric(
-            label="Last Updated",
-            value="2 hours ago"
-        )
+        job_title = st.text_input("Job Title", "Software Engineer")
+        salary = st.number_input("Average Salary (USD)", min_value=20000, max_value=500000, value=120000)
+        years_exp = st.number_input("Years of Experience", min_value=0, max_value=70, value=8)
+        education = st.selectbox("Education Level", ["High School", "Bachelor's", "Master's", "PhD"])
     
-    st.divider()
+    with col2:
+        ai_exposure = st.slider("AI Exposure Index", 0.0, 1.0, 0.65)
+        tech_growth = st.slider("Tech Growth Factor", 0.5, 1.5, 0.85)
+        
+        st.write("**Skill Proficiencies (0-1)**")
+        skills = []
+        for i in range(10):
+            skill = st.slider(f"Skill {i+1}", 0.0, 1.0, 0.7, key=f"skill_{i}")
+            skills.append(skill)
+    
+    if st.button("Assess Role", type="primary"):
+        with st.spinner("Analyzing role..."):
+            try:
+                response = requests.post(
+                    f"{API_URL}/api/v1/assess",
+                    headers=get_headers(),
+                    json={
+                        "job_title": job_title,
+                        "average_salary": salary,
+                        "years_experience": years_exp,
+                        "education_level": education,
+                        "ai_exposure_index": ai_exposure,
+                        "tech_growth_factor": tech_growth,
+                        "skills": skills
+                    }
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    st.success("Assessment Complete")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        risk_prob = result["automation_probability_2030"]
+                        st.metric("Automation Probability", f"{risk_prob*100:.1f}%")
+                    
+                    with col2:
+                        risk_cat = result["risk_category"]
+                        color = "red" if risk_cat == "High" else "orange" if risk_cat == "Medium" else "green"
+                        st.metric("Risk Category", risk_cat)
+                    
+                    with col3:
+                        confidence = result["confidence"]
+                        st.metric("Model Confidence", f"{confidence*100:.1f}%")
+                    
+                    st.write(f"**Assessment ID:** {result['assessment_id']}")
+                    st.write(f"**Confidence Interval:** [{result['confidence_interval'][0]*100:.1f}%, {result['confidence_interval'][1]*100:.1f}%]")
+                    
+                    # Store assessment ID for explanation
+                    st.session_state["last_assessment_id"] = result["assessment_id"]
+                    
+                else:
+                    st.error(f"Assessment failed: {response.text}")
+                    
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+# Page: Explainability
+elif page == "Explainability":
+    st.title("Model Explainability")
+    st.write("Understand which features drive automation risk predictions.")
+    
+    assessment_id = st.text_input(
+        "Assessment ID",
+        value=st.session_state.get("last_assessment_id", "")
+    )
+    
+    if st.button("Generate Explanation"):
+        if not assessment_id:
+            st.warning("Please provide an assessment ID")
+        else:
+            with st.spinner("Generating SHAP and LIME explanations..."):
+                try:
+                    response = requests.post(
+                        f"{API_URL}/api/v1/explain",
+                        headers=get_headers(),
+                        json={"assessment_id": assessment_id}
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        
+                        st.success("Explanations Generated")
+                        
+                        st.subheader("SHAP Explanation (Authoritative)")
+                        st.json(result["shap_explanation"])
+                        
+                        st.subheader("LIME Explanation (Supplementary)")
+                        st.json(result["lime_explanation"])
+                        
+                        if result.get("discrepancy_detected"):
+                            st.warning("Discrepancy detected between SHAP and LIME. SHAP is authoritative.")
+                            st.json(result.get("discrepancy_details"))
+                    else:
+                        st.error(f"Explanation failed: {response.text}")
+                        
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+# Page: What-If Scenarios
+elif page == "What-If Scenarios":
+    st.title("What-If Scenario Analysis")
+    st.write("Explore how changes to role features affect automation risk.")
+    
+    assessment_id = st.text_input(
+        "Original Assessment ID",
+        value=st.session_state.get("last_assessment_id", "")
+    )
+    
+    st.subheader("Proposed Changes")
+    
+    col1, col2 = st.columns(2)
+    
+    changes = {}
+    
+    with col1:
+        if st.checkbox("Modify Education"):
+            changes["education_level"] = st.selectbox("New Education", ["High School", "Bachelor's", "Master's", "PhD"])
+        
+        if st.checkbox("Modify Salary"):
+            changes["average_salary"] = st.number_input("New Salary", min_value=20000, max_value=500000, value=150000)
+    
+    with col2:
+        if st.checkbox("Modify Skills"):
+            st.write("New skill proficiencies:")
+            new_skills = []
+            for i in range(10):
+                skill = st.slider(f"New Skill {i+1}", 0.0, 1.0, 0.8, key=f"new_skill_{i}")
+                new_skills.append(skill)
+            changes["skills"] = new_skills
+    
+    if st.button("Analyze Scenario"):
+        if not assessment_id:
+            st.warning("Please provide an assessment ID")
+        elif not changes:
+            st.warning("Please specify at least one change")
+        else:
+            with st.spinner("Analyzing scenario..."):
+                try:
+                    response = requests.post(
+                        f"{API_URL}/api/v1/scenario",
+                        headers=get_headers(),
+                        json={
+                            "assessment_id": assessment_id,
+                            "changes": changes
+                        }
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        
+                        st.success("Scenario Analysis Complete")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.subheader("Original")
+                            orig = result["original_assessment"]
+                            st.metric("Risk", f"{orig['automation_probability_2030']*100:.1f}%")
+                            st.write(f"Category: {orig['risk_category']}")
+                        
+                        with col2:
+                            st.subheader("Scenario")
+                            scen = result["scenario_assessment"]
+                            st.metric("Risk", f"{scen['automation_probability_2030']*100:.1f}%")
+                            st.write(f"Category: {scen['risk_category']}")
+                        
+                        delta = result["delta_automation_probability"]
+                        st.metric("Change in Risk", f"{delta*100:+.1f}%")
+                        
+                        st.subheader("Analysis")
+                        st.write(result["narrative"])
+                    else:
+                        st.error(f"Scenario analysis failed: {response.text}")
+                        
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+# Page: Audit Trail
+elif page == "Audit Trail":
+    st.title("Audit Trail")
+    st.write("View system activity and access logs.")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        action_filter = st.selectbox("Filter by Action", ["All", "assessment", "explain", "scenario"])
+    with col2:
+        page_num = st.number_input("Page", min_value=1, value=1)
+    with col3:
+        per_page = st.number_input("Per Page", min_value=10, max_value=100, value=50)
+    
+    if st.button("Load Audit Logs"):
+        with st.spinner("Loading audit logs..."):
+            try:
+                params = {
+                    "page": page_num,
+                    "per_page": per_page
+                }
+                if action_filter != "All":
+                    params["action"] = action_filter
+                
+                response = requests.get(
+                    f"{API_URL}/api/v1/audit",
+                    headers=get_headers(),
+                    params=params
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    st.write(f"**Total Logs:** {result['total']}")
+                    st.write(f"**Page {result['page']} of {result['pages']}**")
+                    
+                    if result['logs']:
+                        df = pd.DataFrame(result['logs'])
+                        st.dataframe(df, use_container_width=True)
+                    else:
+                        st.info("No audit logs found")
+                else:
+                    st.error(f"Failed to load audit logs: {response.text}")
+                    
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+# Page: Reports
+elif page == "Reports":
+    st.title("Governance Reports")
+    st.write("Generate bias analysis and sensitivity reports.")
+    
+    tab1, tab2 = st.tabs(["Bias Analysis", "Sensitivity Analysis"])
+    
+    with tab1:
+        st.subheader("Fairness and Bias Report")
+        st.write("Analyze model fairness across sensitive attributes.")
+        
+        sample_size = st.slider("Sample Size", 100, 1000, 500)
+        
+        if st.button("Generate Bias Report"):
+            with st.spinner("Analyzing fairness metrics..."):
+                try:
+                    response = requests.get(
+                        f"{API_URL}/api/v1/governance/bias",
+                        headers=get_headers(),
+                        params={"sample_size": sample_size}
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        
+                        st.success("Bias Analysis Complete")
+                        st.write(f"**Overall Assessment:** {result['overall_assessment']}")
+                        
+                        st.json(result)
+                    else:
+                        st.error(f"Bias analysis failed: {response.text}")
+                        
+                except Exception as e:
+                    st.error(f"Error: {e}")
+    
+    with tab2:
+        st.subheader("Model Sensitivity Report")
+        st.write("Test model robustness to input perturbations.")
+        
+        sample_size = st.slider("Sample Size", 10, 100, 50, key="sens_sample")
+        
+        if st.button("Generate Sensitivity Report"):
+            with st.spinner("Analyzing sensitivity..."):
+                try:
+                    response = requests.get(
+                        f"{API_URL}/api/v1/governance/sensitivity",
+                        headers=get_headers(),
+                        params={"sample_size": sample_size}
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        
+                        st.success("Sensitivity Analysis Complete")
+                        st.json(result)
+                    else:
+                        st.error(f"Sensitivity analysis failed: {response.text}")
+                        
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
     
     col1, col2 = st.columns(2)
     
