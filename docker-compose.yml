@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13-alpine
+    container_name: jobimpactx_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ai_platform}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_job_impact}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jobimpactx_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: jobimpactx_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - jobimpactx_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jobimpactx_api
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ai_platform}:${POSTGRES_PASSWORD:-secure_password}@postgres:5432/${POSTGRES_DB:-ai_job_impact}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-True}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - jobimpactx_network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jobimpactx_dashboard
+    command: streamlit run app/dashboard/main.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://api:8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ai_platform}:${POSTGRES_PASSWORD:-secure_password}@postgres:5432/${POSTGRES_DB:-ai_job_impact}
+    volumes:
+      - ./models:/app/models
+    depends_on:
+      - api
+      - postgres
+    networks:
+      - jobimpactx_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  jobimpactx_network:
+    driver: bridge
